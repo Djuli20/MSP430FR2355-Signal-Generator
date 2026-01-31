@@ -1,358 +1,425 @@
-//******************************************************************************
-//  MSP430FR235x Demo - SAC-L3, DAC Buffer Mode
-//
-//  Description: Configure SAC-L3 for DAC Buffer Mode. Use the 12 bit DAC to
-//  output positive ramp. The OA is set in buffer mode to improve DAC output
-//  drive strength. Internal 2.5V reference is selected as DAC reference.
-//  Observe the output of OA0O pin with oscilloscope.
-//  ACLK = n/a, MCLK = SMCLK = default DCODIV ~1MHz.
-//
-//                MSP430FR235x
-//             -------------------
-//         /|\|                         |
-//          | |                         |
-//          --|RST     P1.1->DAC12->OA0O|--> oscilloscope
-//            |                         |
-//            |                         |
-//
-//******************************************************************************
 #include <msp430.h>
-
-unsigned int DAC_data=0;
-unsigned int i=0;
-unsigned int frcvsemnal=0;
-int counter=0;
-#define DAC_Resolution 4095
-
-int incrementareCounter=1;
-int optiuneButon=1;
-double amplitudine = 4095; // Amplitudinea maxima a semnalului (adica valoarea maxima a DAC-ului)
-double frecventa = 1000; // Frecventa semnalului în Hz
-int triggerfrq=1000;
-int frecvang;
-
-unsigned int semnal[100]={1024,1088,1152,1216,1279,1340,1401,1460,
-                          1517,1573,1626,1677,1725,1770,1813,1852,
-                          1889,1921,1951,1976,1998,2016,2030,2040,
-                          2046,2048,2046,2040,2030,2016,1998,1976,
-                          1951,1921,1889,1852,1813,1770,1725,1677,
-                          1626,1573,1517,1460,1401,1340,1279,1216,
-                          1152,1088,1024,960,896,832,769,708,
-                          647,588,531,475,422,371,323,278,
-                          235,196,159,127,97,72,50,32,
-                          18,8,2,0,2,8,18,32,
-                          50,72,97,127,159,196,235,278,
-                          323,371,422,475,531,588,647,708,
-                          769,832,896,960,1024};
-unsigned int semnalInitial[100]={1024,1088,1152,1216,1279,1340,1401,1460,
-                          1517,1573,1626,1677,1725,1770,1813,1852,
-                          1889,1921,1951,1976,1998,2016,2030,2040,
-                          2046,2048,2046,2040,2030,2016,1998,1976,
-                          1951,1921,1889,1852,1813,1770,1725,1677,
-                          1626,1573,1517,1460,1401,1340,1279,1216,
-                          1152,1088,1024,960,896,832,769,708,
-                          647,588,531,475,422,371,323,278,
-                          235,196,159,127,97,72,50,32,
-                          18,8,2,0,2,8,18,32,
-                          50,72,97,127,159,196,235,278,
-                          323,371,422,475,531,588,647,708,
-                          769,832,896,960,1024};
-
-int ordinSchimbareAmplitudine=1;
-double ordin=0;
-int PWMDutyCycle=2000;
-//void modificareAmp(){
-//    ordin+=0.2;
-//    if(ordin>0.8){
-//            ordin=0;
-//    }
-//    for(i=0;i<100;i++)
-//    {
-//        semnal[i]=semnalInitial[i];
-//    }
-//    for(i=0;i<100;i++)
-//    {
-//        if(i<50){
-//            semnal[i]+=semnal[i]*ordin;
-//        }
-//
-//        if(i>=50){
-//            semnal[i]+=semnal[i]*ordin;
-//        }
-//
-//    }
-//
-//
-//}
-//double procent= ordin/100;
-//for(i=0;i<100;i++)
-//{
-//    semnal[i]=semnalInitial[i];
-//}
-//for(i=0;i<100;i++)
-//{
-//    semnal[i]+=semnal[i]*procent;
-//
-//}
-//if(ordin>80){
-//    ordin=0;
-//}
-//else{
-//    ordin+=20;
-//}
-
-void modificareAmplitudine(){
-    PMMCTL0_H = PMMPW_H;                // Unlock the PMM registers
-    if(ordinSchimbareAmplitudine==1){
-        SAC0DAC=DACSREF_0+ DACLSEL_2 + DACIE ;
-
-        ordinSchimbareAmplitudine=2;
-
-    }else
-    {
-        if(ordinSchimbareAmplitudine==2){
-            PMMCTL0_H = PMMPW_H;
-            PMMCTL2 = INTREFEN | REFVSEL_2;           // Enable internal 2.5V reference
-            while(!(PMMCTL2 & REFGENRDY));
-            SAC0DAC=DACSREF_1+ DACLSEL_2 + DACIE ;
-            SAC0DAC |= DACEN;
-            ordinSchimbareAmplitudine++;
-        }
-        else{
-            if(ordinSchimbareAmplitudine==3){
-                PMMCTL0_H = PMMPW_H;
-                PMMCTL2 = INTREFEN | REFVSEL_1;           // Enable internal 2.0V reference
-                while(!(PMMCTL2 & REFGENRDY));
-                SAC0DAC=DACSREF_1+ DACLSEL_2 + DACIE ;
-                SAC0DAC |= DACEN;
-
-                ordinSchimbareAmplitudine++;
-            }
-            else{
-                PMMCTL0_H = PMMPW_H;
-                PMMCTL2 = INTREFEN | REFVSEL_0;           // Enable internal 1.5V reference
-                while(!(PMMCTL2 & REFGENRDY));
-                SAC0DAC=DACSREF_1+ DACLSEL_2 + DACIE ;
-                SAC0DAC |= DACEN;
-
-                ordinSchimbareAmplitudine=1;
-            }
-        }
-    }
-
-}
-void ajustareFrecventa(){
-    if(frcvsemnal==0){
-            // Use TB2.1 as DAC hardware trigger
-             TB2CCR0 = 1200-1; // CLK= 20KHz f-semnal=200Hz                          // PWM Period/2
-             TB2CCTL1 = OUTMOD_6;                       // TBCCR1 toggle/set
-             TB2CCR1 = 600;                              // TBCCR1 PWM duty cycle
-             TB2CTL = TBSSEL__SMCLK | MC_1 | TBCLR;     // SMCLK, up mode, clear TBR
-        }
-        if(frcvsemnal==1){       // Use TB2.1 as DAC hardware trigger
-            TB2CCR0 = 480-1; // CLK= 50KHz f-semnal=500Hz                          // PWM Period/2
-            TB2CCTL1 = OUTMOD_6;                       // TBCCR1 toggle/set
-            TB2CCR1 = 240;                              // TBCCR1 PWM duty cycle
-            TB2CTL = TBSSEL__SMCLK | MC_1 | TBCLR;     // SMCLK, up mode, clear TBR
-        }
-        if(frcvsemnal==2){        // Use TB2.1 as DAC hardware trigger
-            // CLK= 100KHz f-semnal=1000Hz
-            TB2CCR0 = 240-1;                           // PWM Period/2
-            TB2CCTL1 = OUTMOD_6;                       // TBCCR1 toggle/set
-            TB2CCR1 = 120;                              // TBCCR1 PWM duty cycle
-            TB2CTL = TBSSEL__SMCLK | MC_1 | TBCLR;     // SMCLK, up mode, clear TBR
-        }
-}
-void modificareFrecventa(){
-    frcvsemnal++;     //0-> 200Hz, 1-> 500Hz, 2->1KHz
-    if(frcvsemnal>2){
-        frcvsemnal=0;
-    }
-    ajustareFrecventa();
-//    if(frcvsemnal==0){
-//        // Use TB2.1 as DAC hardware trigger
-//         TB2CCR0 = 1200-1; // CLK= 20KHz f-semnal=200Hz                          // PWM Period/2
-//         TB2CCTL1 = OUTMOD_6;                       // TBCCR1 toggle/set
-//         TB2CCR1 = 600;                              // TBCCR1 PWM duty cycle
-//         TB2CTL = TBSSEL__SMCLK | MC_1 | TBCLR;     // SMCLK, up mode, clear TBR
-//    }
-//    if(frcvsemnal==1){       // Use TB2.1 as DAC hardware trigger
-//        TB2CCR0 = 480-1; // CLK= 50KHz f-semnal=500Hz                          // PWM Period/2
-//        TB2CCTL1 = OUTMOD_6;                       // TBCCR1 toggle/set
-//        TB2CCR1 = 240;                              // TBCCR1 PWM duty cycle
-//        TB2CTL = TBSSEL__SMCLK | MC_1 | TBCLR;     // SMCLK, up mode, clear TBR
-//    }
-//    if(frcvsemnal==2){        // Use TB2.1 as DAC hardware trigger
-//        // CLK= 100KHz f-semnal=1000Hz
-//        TB2CCR0 = 240-1;                           // PWM Period/2
-//        TB2CCTL1 = OUTMOD_6;                       // TBCCR1 toggle/set
-//        TB2CCR1 = 120;                              // TBCCR1 PWM duty cycle
-//        TB2CTL = TBSSEL__SMCLK | MC_1 | TBCLR;     // SMCLK, up mode, clear TBR
-//    }
-
-}
-void modificareFrecventaEsantionare(){
-    if(incrementareCounter==1){
-        incrementareCounter=2;
-    }
-    if(incrementareCounter>8){
-        incrementareCounter=1;
-    }
-    else{
-        incrementareCounter+=2;
-    }
-
-
-}
-
+ 
+ 
+ 
+void Init_GPIO();
+unsigned int sinus[300] = {
+                           2048, 2090, 2133, 2176, 2219, 2262, 2304, 2347, 2389, 2431, 2473, 2515, 2557, 2598, 2639, 2680, 2721, 2761, 2801, 2841,
+                           2880, 2919, 2958, 2996, 3034, 3071, 3108, 3145, 3181, 3216, 3251, 3285, 3319, 3353, 3385, 3418, 3449, 3480, 3510, 3540,
+                           3569, 3597, 3625, 3652, 3678, 3704, 3729, 3753, 3776, 3799, 3821, 3842, 3862, 3881, 3900, 3918, 3935, 3951, 3967, 3981,
+                           3995, 4008, 4020, 4031, 4041, 4050, 4059, 4066, 4073, 4079, 4084, 4088, 4091, 4093, 4095, 4095, 4095, 4093, 4091, 4088,
+                           4084, 4079, 4073, 4066, 4059, 4050, 4041, 4031, 4020, 4008, 3995, 3981, 3967, 3951, 3935, 3918, 3900, 3881, 3862, 3842,
+                           3821, 3799, 3776, 3753, 3729, 3704, 3678, 3652, 3625, 3597, 3569, 3540, 3510, 3480, 3449, 3418, 3385, 3353, 3319, 3285,
+                           3251, 3216, 3181, 3145, 3108, 3071, 3034, 2996, 2958, 2919, 2880, 2841, 2801, 2761, 2721, 2680, 2639, 2598, 2557, 2515,
+                           2473, 2431, 2389, 2347, 2304, 2262, 2219, 2176, 2133, 2090, 2048, 2005, 1962, 1919, 1876, 1833, 1791, 1748, 1706, 1664,
+                           1622, 1580, 1538, 1497, 1456, 1415, 1374, 1334, 1294, 1254, 1215, 1176, 1137, 1099, 1061, 1024, 987, 950, 914, 879,
+                           844, 810, 776, 742, 710, 677, 646, 615, 585, 555, 526, 498, 470, 443, 417, 391, 366, 342, 319, 296,
+                           274, 253, 233, 214, 195, 177, 160, 144, 128, 114, 100, 87, 75, 64, 54, 45, 36, 29, 22, 16,
+                           11, 7, 4, 2, 0, 0, 0, 2, 4, 7, 11, 16, 22, 29, 36, 45, 54, 64, 75, 87,
+                           100, 114, 128, 144, 160, 177, 195, 214, 233, 253, 274, 296, 319, 342, 366, 391, 417, 443, 470, 498,
+                           526, 555, 585, 615, 646, 677, 710, 742, 776, 810, 844, 879, 914, 950, 987, 1024, 1061, 1099, 1137, 1176,
+                           1215, 1254, 1294, 1334, 1374, 1415, 1456, 1497, 1538, 1580, 1622, 1664, 1706, 1748, 1791, 1833, 1876, 1919, 1962, 2005};
+unsigned int rampa[300] = { 0, 14, 27, 41, 55, 68, 82, 96, 110, 123, 137, 151, 164, 178, 192, 205,
+                              219, 233, 246, 260, 274, 287, 301, 315, 329, 342, 356, 370, 383, 397, 411, 424,
+                              438, 452, 465, 479, 493, 507, 520, 534, 548, 561, 575, 589, 602, 616, 630, 643,
+                              657, 671, 685, 698, 712, 726, 739, 753, 767, 780, 794, 808, 821, 835, 849, 862,
+                              876, 890, 904, 917, 931, 945, 958, 972, 986, 999, 1013, 1027, 1040, 1054, 1068, 1082,
+                              1095, 1109, 1123, 1136, 1150, 1164, 1177, 1191, 1205, 1218, 1232, 1246, 1259, 1273, 1287, 1301,
+                              1314, 1328, 1342, 1355, 1369, 1383, 1396, 1410, 1424, 1437, 1451, 1465, 1479, 1492, 1506, 1520,
+                              1533, 1547, 1561, 1574, 1588, 1602, 1615, 1629, 1643, 1656, 1670, 1684, 1698, 1711, 1725, 1739,
+                              1752, 1766, 1780, 1793, 1807, 1821, 1834, 1848, 1862, 1876, 1889, 1903, 1917, 1930, 1944, 1958,
+                              1971, 1985, 1999, 2012, 2026, 2040, 2054, 2067, 2081, 2095, 2108, 2122, 2136, 2149, 2163, 2177,
+                              2190, 2204, 2218, 2231, 2245, 2259, 2273, 2286, 2300, 2314, 2327, 2341, 2355, 2368, 2382, 2396,
+                              2409, 2423, 2437, 2451, 2464, 2478, 2492, 2505, 2519, 2533, 2546, 2560, 2574, 2587, 2601, 2615,
+                              2628, 2642, 2656, 2670, 2683, 2697, 2711, 2724, 2738, 2752, 2765, 2779, 2793, 2806, 2820, 2834,
+                              2848, 2861, 2875, 2889, 2902, 2916, 2930, 2943, 2957, 2971, 2984, 2998, 3012, 3025, 3039, 3053,
+                              3067, 3080, 3094, 3108, 3121, 3135, 3149, 3162, 3176, 3190, 3203, 3217, 3231, 3245, 3258, 3272,
+                              3286, 3299, 3313, 3327, 3340, 3354, 3368, 3381, 3395, 3409, 3423, 3436, 3450, 3464, 3477, 3491,
+                              3505, 3518, 3532, 3546, 3559, 3573, 3587, 3600, 3614, 3628, 3642, 3655, 3669, 3683, 3696, 3710,
+                              3724, 3737, 3751, 3765, 3778, 3792, 3806, 3820, 3833, 3847, 3861, 3874, 3888, 3902, 3915, 3929,
+                              3943, 3956, 3970, 3984, 3997, 4011, 4025, 4039, 4052, 4066, 4080, 4093
+                          };
+unsigned int triunghi[300] = {0, 27, 55, 82, 110, 137, 164, 192, 219, 246, 274, 301, 329, 356, 383, 411,
+    438, 465, 493, 520, 548, 575, 602, 630, 657, 685, 712, 739, 767, 794, 821, 849,
+    876, 904, 931, 958, 986, 1013, 1040, 1068, 1095, 1123, 1150, 1177, 1205, 1232, 1259, 1287,
+    1314, 1342, 1369, 1396, 1424, 1451, 1479, 1506, 1533, 1561, 1588, 1615, 1643, 1670, 1698, 1725,
+    1752, 1780, 1807, 1834, 1862, 1889, 1917, 1944, 1971, 1999, 2026, 2054, 2081, 2108, 2136, 2163,
+    2190, 2218, 2245, 2273, 2300, 2327, 2355, 2382, 2409, 2437, 2464, 2492, 2519, 2546, 2574, 2601,
+    2628, 2656, 2683, 2711, 2738, 2765, 2793, 2820, 2848, 2875, 2902, 2930, 2957, 2984, 3012, 3039,
+    3067, 3094, 3121, 3149, 3176, 3203, 3231, 3258, 3286, 3313, 3340, 3368, 3395, 3423, 3450, 3477,
+    3505, 3532, 3559, 3587, 3614, 3642, 3669, 3696, 3724, 3751, 3778, 3806, 3833, 3861, 3888, 3915,
+    3943, 3970, 3997, 4025, 4052, 4080, 4095, 4080, 4052, 4025, 3997, 3970, 3943, 3915, 3888, 3861,
+    3833, 3806, 3778, 3751, 3724, 3696, 3669, 3642, 3614, 3587, 3559, 3532, 3505, 3477, 3450, 3423,
+    3395, 3368, 3340, 3313, 3286, 3258, 3231, 3203, 3176, 3149, 3121, 3094, 3067, 3039, 3012, 2984,
+    2957, 2930, 2902, 2875, 2848, 2820, 2793, 2765, 2738, 2711, 2683, 2656, 2628, 2601, 2574, 2546,
+    2519, 2492, 2464, 2437, 2409, 2382, 2355, 2327, 2300, 2273, 2245, 2218, 2190, 2163, 2136, 2108,
+    2081, 2053, 2026, 1999, 1971, 1944, 1917, 1889, 1862, 1834, 1807, 1780, 1752, 1725, 1698, 1670,
+    1643, 1615, 1588, 1561, 1533, 1506, 1479, 1451, 1424, 1396, 1369, 1342, 1314, 1287, 1259, 1232,
+    1205, 1177, 1150, 1123, 1095, 1068, 1040, 1013, 986, 958, 931, 904, 876, 849, 821, 794,
+    767, 739, 712, 684, 657, 630, 602, 575, 548, 520, 493, 465, 438, 411, 383, 356,
+    329, 301, 274, 246, 219, 192, 164, 137, 110, 82, 55, 27
+};
+ 
+unsigned int *semnal1 = sinus;
+unsigned int *semnal2 = sinus;
+char ADC_char[3][12] = {
+    {'A','x','=',' ','x','x','x','x',10,13,0},
+    {'A','x','=',' ','x','x','x','x',10,13,0},
+    {'A','x','=',' ','x','x','x','x',10,13,0}
+};
+//char CanalA1_char[6]={'A','1','=',' ','x','x','x','x',10,13,0};
+//char CanalA2_char[6]={'A','2','=',' ','x','x','x','x',10,13,0};
+unsigned int i,j;
+unsigned int indx_semnal1,indx_semnal2,indx_frec=0;
+void Software_Trim();                       // Software Trim to get the best DCOFTRIM value
+#define MCLK_FREQ_MHZ 20                  // MCLK = 2MHz
+ 
+unsigned int ADC_Result[3];                                    // 12-bit ADC conversion result array
+unsigned char ADC_i;
+unsigned int DAC_data=0;//se inlocuieste
+char frecW = 0;
+char frecbuff[2] = {'0','1'};
+unsigned int frecMultix = 1;
 int main(void)
 {
-  WDTCTL = WDTPW + WDTHOLD;                 // Stop watch dog timer
-// configurare CS SMCLK=24MHz
-
-  // Configure two FRAM waitstate as required by the device datasheet for MCLK
-  // operation at 24MHz(beyond 8MHz) _before_ configuring the clock system.
-  FRCTL0 = FRCTLPW | NWAITS_2;
-
-  __bis_SR_register(SCG0);                           // disable FLL
-  CSCTL3 |= SELREF__REFOCLK;                         // Set REFO as FLL reference source
-  CSCTL0 = 0;                                        // clear DCO and MOD registers
-  CSCTL1 |= DCORSEL_7;                               // Set DCO = 24MHz
-  CSCTL2 = FLLD_0 + 731;                             // DCOCLKDIV = 24MHz
-  __delay_cycles(3);
-  __bic_SR_register(SCG0);                           // enable FLL
-  while(CSCTL7 & (FLLUNLOCK0 | FLLUNLOCK1));         // FLL locked
-
-  CSCTL4 = SELMS__DCOCLKDIV | SELA__REFOCLK;        // set default REFO(~32768Hz) as ACLK source, ACLK = 32768Hz
-                                                     // default DCOCLKDIV as MCLK and SMCLK source
-
-  P1DIR |= BIT0;       // set P1.0 as SMCLK  output
-  P1SEL1 |= BIT0;                             // set ACLK and  SMCLK pin as second function
-
-//configurare DAC -> out P1.1
-  P1SEL0 |= BIT1;                           // Select P1.1 as OA0O function
-  P1SEL1 |= BIT1;                           // OA is used as buffer for DAC
-
-// configurare buton P2.3
-
-  P2OUT |= BIT3;                          // Configure P2.3 as pulled-up
-  P2REN |= BIT3;                          // P2.3 pull-up register enable
-  P2IES |= BIT3;                          // P2.3 Hi/Low edge
-  P2IE |= BIT3;                           // P2.3 interrupt enabled
-  P2IFG &= ~BIT3;                         // P2.3 IFG cleared
-
-  // configuram buton P4.1
-
-  P4OUT |= BIT1;                          // Configure P2.3 as pulled-up
-  P4REN |= BIT1;                          // P2.3 pull-up register enable
-  P4IES |= BIT1;                          // P2.3 Hi/Low edge
-  P4IE |= BIT1;                           // P2.3 interrupt enabled
-  P4IFG &= ~BIT1;                         // P2.3 IFG cleared
-
-  PM5CTL0 &= ~LOCKLPM5;                     // Disable the GPIO power-on default high-impedance mode
-                                            // to activate previously configured port settings
-
-  // Configure reference module
-  PMMCTL0_H = PMMPW_H;                      // Unlock the PMM registers
-  PMMCTL2 = INTREFEN | REFVSEL_0;           // Enable internal 2V reference
-  while(!(PMMCTL2 & REFGENRDY));            // Poll till internal reference settles
-
-  SAC0DAC = DACSREF_0 + DACLSEL_2 + DACIE;  // Select int Vref as DAC reference
-  SAC0DAT = semnal[0];                       // Initial DAC data
- // SAC0DACSTS=DACIFG;// clear intreupt
-  SAC0DAC |= DACEN;                         // Enable DAC
-
- // SAC0DAT = semnal[0]; // write sample
-
-  SAC0OA = NMUXEN + PMUXEN + PSEL_1 + NSEL_1;//Select positive and negative pin input
-  SAC0OA |= OAPM_0;                            // Select low speed and low power mode
-  SAC0PGA = MSEL_1;                          // Set OA as buffer mode
-  SAC0OA |= SACEN + OAEN;                    // Enable SAC and OA
-
- // Use TB2.1 as DAC hardware trigger
-  TB2CCR0 = 120-1;                           // PWM Period/2
-  TB2CCTL1 = OUTMOD_6;                       // TBCCR1 toggle/set
-  TB2CCR1 = 60;                              // TBCCR1 PWM duty cycle
-  TB2CTL = TBSSEL__SMCLK | MC_1 | TBCLR;     // SMCLK, up mode, clear TBR
-
-  __bis_SR_register(GIE);        // Enter LPM3, Enable Interrupt
-  //__bis_SR_register(LPM3_bits + GIE);
-
+    WDTCTL = WDTPW | WDTHOLD;                                   // Stop WDT
+ 
+    FRCTL0 = FRCTLPW | NWAITS_2; // tact/intarziere pentru access FRAM
+    __bis_SR_register(SCG0);                // Disable FLL
+     CSCTL3 = SELREF__REFOCLK;               // Set REFO as FLL reference source
+     CSCTL1 = DCOFTRIMEN_1 | DCOFTRIM0 | DCOFTRIM1 | DCORSEL_6;// DCOFTRIM=3, DCO Range = 20MHz
+     CSCTL2 = FLLD_0 + 609;                   // DCODIV = 20MHz
+     __delay_cycles(3);
+     __bic_SR_register(SCG0);                // Enable FLL
+     Software_Trim();                        // Software Trim to get the best DCOFTRIM value
+     CSCTL4 = SELMS__DCOCLKDIV | SELA__REFOCLK; // set default REFO(~32768Hz) as ACLK source, ACLK = 32768Hz
+                                                // default DCODIV as MCLK and SMCLK source
+     indx_semnal1=0;
+     indx_semnal2=0;
+     P1SEL0 |= BIT5;                           // Select P1.5 as OA1O function
+     P1SEL1 |= BIT5;                           // OA is used as buffer for DAC
+ 
+     // Configure UART pins P4.3 Tx si P4.2 Rx
+       P4SEL0 |= BIT2 | BIT3;
+       P4SEL1 &=~(BIT2 | BIT3);
+ 
+       // Configure UART A1
+       UCA1CTLW0 |= UCSWRST;
+       UCA1CTLW0 |= UCSSEL_2;   // set SMCLK as BRCLK
+ 
+       // Baud Rate calculation. Referred to UG 17.3.10
+       // (1) N=32768/4800=6.827
+       // (2) OS16=0, UCBRx=INT(N)=6
+       // (4) Fractional portion = 0.827. Refered to UG Table 17-4, UCBRSx=0xEE.
+     // MCLK SMCLK PINS
+ 
+       // @115200bps @ 20MHz
+       UCA1BR0 = 10;
+       UCA1BR1 = 0x00;
+       UCA1MCTLW = 0xADD1;
+ 
+ 
+     P3DIR |= BIT0;
+     P3SEL0 |= BIT0;
+     P3SEL1 &= ~BIT0;
+ 
+     P3DIR |= BIT4;
+     P3SEL0 |= BIT4;
+     P3SEL1 &= ~BIT4;
+ 
+    // Configure ADC A0~2 pins
+    P1SEL0 |=  BIT0 + BIT1 + BIT2;
+    P1SEL1 |=  BIT0 + BIT1 + BIT2;
+ 
+    // Disable the GPIO power-on default high-impedance mode to activate
+    // previously configured port settings
+    PM5CTL0 &= ~LOCKLPM5;
+    // Configure reference
+    PMMCTL0_H = PMMPW_H;                                        // Unlock the PMM registers
+    PMMCTL2 |= INTREFEN;                                        // Enable internal reference
+    __delay_cycles(400);                                        // Delay for reference settling
+ 
+    UCA1CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
+    UCA1IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
+    // Configure ADC
+    ADCCTL0 |= ADCSHT_10 | ADCON;                                // 16ADCclks, ADC ON
+    ADCCTL1 |= ADCSHP | ADCSHS_2 | ADCCONSEQ_3;                 // ADC clock MODCLK, sampling timer, TB1.1B trig.,repeat sequence
+    ADCCTL2 &= ~ADCRES;                                      // clear ADCRES in ADCCTL
+    ADCCTL2 |= ADCRES_2;                                     // 12-bit conversion results
+    ADCMCTL0 |= ADCINCH_2;                          // A0~2(EoS); Vref=3,3V
+    ADCIE |= ADCIE0;                                            // Enable ADC conv complete interrupt
+ 
+ 
+    SAC1DAC = DACSREF_0 + DACLSEL_0 + DACIE;  // Select int Vref as DAC reference
+    SAC1DAT = DAC_data;                       // Initial DAC data
+    SAC1DAC |= DACEN;                         // Enable DAC
+ 
+    SAC1OA = NMUXEN + PMUXEN + PSEL_1 + NSEL_1;//Select positive and negative pin input
+    SAC1OA |= OAPM_0;                            // Select low speed and low power mode
+    SAC1PGA = MSEL_1;                          // Set OA as buffer mode
+    SAC1OA |= SACEN + OAEN;                    // Enable SAC and OA
+ 
+    // Use TB2.1 as DAC hardware trigger
+    TB2CCR0 = 100;// pentru a genera T_int_a la 52ms
+    TB2CCR1 = 10;// pentru a genera T_int_b la 90us
+ 
+    TB2CCTL0 = CCIE;// TBCCR0 interrupt enabled
+    TB2CCTL1 = CCIE;// TBCCR1 interrupt enabled
+ 
+ 
+    //TB2EX0 |= TBIDEX_4;// IDEX = 5
+    TB2CTL |= TBSSEL__SMCLK | ID_0 | TBCLR | MC__CONTINOUS| TBIE; // tact_SMCLK, IDEX = 5, ID=4 modul continuu(up)
+ 
+ 
+ 
+// tb1.1 set to pwm to trigger the sampling. ACLK the clk source 32768hz
+    TB1CCR0 = 326;                                          // PWM Period, 0,01s
+    TB1CCTL1 = OUTMOD_7;                                        // CCR1 reset/set
+    TB1CCR1 = 163;                                              // CCR1 PWM duty cycle, 50%
+    TB1CTL = TBSSEL__ACLK | MC__UP | TBCLR;                    // SMCLK, up mode, clear TAR
+ 
+    ADC_i = 2;
+    i=0;
+//    while(1)
+//    {
+        ADCCTL0 |= ADCENC;                                       // Enable ADC
+        TB1CTL |= TBCLR;                                         // Clear TAR to start the ADC sample
+        __bis_SR_register(GIE);                      // Eenable global interrupts
+        __no_operation();                                        // Only for debug
+//    }
 }
-
+ 
+// ADC interrupt service routine
 #if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
-#pragma vector = SAC0_SAC2_VECTOR
-__interrupt void SAC0_ISR(void)
+#pragma vector=ADC_VECTOR
+__interrupt void ADC_ISR(void)
 #elif defined(__GNUC__)
-void __attribute__ ((interrupt(SAC0_SAC2_VECTOR))) SAC0_ISR (void)
+void __attribute__ ((interrupt(ADC_VECTOR))) ADC_ISR (void)
 #else
 #error Compiler not supported!
 #endif
 {
-  switch(__even_in_range(SAC0IV,SACIV_4))
+    switch(__even_in_range(ADCIV,ADCIV_ADCIFG))
+    {
+        case ADCIV_NONE:
+            break;
+        case ADCIV_ADCOVIFG:
+            break;
+        case ADCIV_ADCTOVIFG:
+            break;
+        case ADCIV_ADCHIIFG:
+            break;
+        case ADCIV_ADCLOIFG:
+            break;
+        case ADCIV_ADCINIFG:
+            break;
+        case ADCIV_ADCIFG:
+            ADC_Result[ADC_i] = ADCMEM0;
+            //!!Conversie pentru afisare 3 canale ADC
+//            ADC_char[ADC_i][2] = (ADC_i/10)+48;
+//            ADC_char[ADC_i][4] = (ADC_Result[ADC_i]%10)+48;
+//            ADC_char[ADC_i][5] = ((ADC_Result[ADC_i]/10)%10)+48;
+//            ADC_char[ADC_i][6] = ((ADC_Result[ADC_i]/100)%10)+48;
+//            ADC_char[ADC_i][7] = ((ADC_Result[ADC_i]/1000)%10)+48;
+            if(ADC_i == 0)
+            {
+                __no_operation();   // Only for debug
+                ADC_i = 2;
+            }
+            else
+            {
+                ADC_i--;
+            }
+            break;
+        default:
+            break;
+    }
+}
+ 
+//UART intrerupt routine
+#pragma vector=USCI_A1_VECTOR
+__interrupt void Rutina_USCI_A1(void)
+{
+  switch(__even_in_range(UCA1IV,USCI_UART_UCTXCPTIFG))
   {
-    case SACIV_0: break;
-    case SACIV_2: break;
-    case SACIV_4:
-      //  DAC_data++;
-      //  DAC_data &= 0xFFF;
-       // SAC0DACSTS=0;
-        counter+=incrementareCounter;
-
-        if(counter>=99)
-            counter=0;
-
-        SAC0DAT = semnal[counter];
-
-       // SAC0DACSTS=DACIFG;
-
-        break;
+    case USCI_NONE: break;
+    case USCI_UART_UCRXIFG:
+        if (UCA1RXBUF == '#')
+        {
+            //TB2CCR0 = ADC_Result[0];
+            for(j=0;j<3;j++)
+               {
+                               ADC_char[j][2] = j+48;
+                               ADC_char[j][4] = ((ADC_Result[j]/1000)%10)+48;
+                               ADC_char[j][6] = ((ADC_Result[j]/100)%10)+48;
+                               ADC_char[j][5] = ((ADC_Result[j]/10)%10)+48;
+                               ADC_char[j][7] = (ADC_Result[j]%10)+48;
+               }
+            for(j=0;j<3;j++)
+            {
+                for(i=0;i<12;i++)
+ 
+               {
+                while(!(UCA1IFG&UCTXIFG));
+                UCA1TXBUF = ADC_char[j][i];
+               }
+            }
+ 
+        }
+      else
+          if(UCA1RXBUF == 's')
+          {
+              semnal1 = sinus;
+          }
+      else
+          if(UCA1RXBUF == 't')
+          {
+              semnal1 = triunghi;
+          }
+      else
+          if(UCA1RXBUF == 'd')
+          {
+              semnal1 = rampa;
+          }
+      else
+          if(UCA1RXBUF == '!')
+          {
+              frecW ^= 1;
+          }
+      if(frecW == 1)
+      {
+          frecbuff[indx_frec]=UCA1RXBUF;
+          indx_frec++;
+          if(indx_frec==2)
+          {
+              frecMultix = (frecbuff[0] - 48) * 10 + (frecbuff[1] - 48);
+              indx_frec=0;
+          }
+          //frecW == 0;
+      }
+       {
+      while(!(UCA1IFG&UCTXIFG));
+ 
+      UCA1TXBUF = UCA1RXBUF;
+       }
+      __no_operation();
+      break;
+    case USCI_UART_UCTXIFG: break;
+    case USCI_UART_UCSTTIFG: break;
+    case USCI_UART_UCTXCPTIFG: break;
     default: break;
   }
 }
-
-
-// Port 2 interrupt service routine
-#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
-#pragma vector=PORT2_VECTOR
-__interrupt void Port_2(void)
-#elif defined(__GNUC__)
-void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
-#else
-#error Compiler not supported!
-#endif
+ 
+// Timer B1 Rutina de tratare a intreruperi CCR0
+#pragma vector = TIMER2_B0_VECTOR
+__interrupt void Timer2_B0_ISR(void)
 {
-    P2IFG &= ~BIT3;                         // Clear P1.3 IFG
-    if(optiuneButon<=3)
+    //P1OUT ^= BIT0;// schimba starea lui P1.x
+    TB2CCR0 += 100;//ADC_Result[0];
+    //TB2CCR0 += ADC_Result[0]/10;
+ 
+//    DAC_data+=10;
+//    DAC_data = ADC_Result[0];
+//    DAC_data += ADC_Result[0]/10;
+//    DAC_data &= 0xFFF;
+//    SAC1DAT = DAC_data;                 // DAC12 output positive ramp
+    indx_semnal1+=frecMultix;
+    if(indx_semnal1>=300)
+        indx_semnal1=0;
+     SAC1DAT = semnal1[indx_semnal1];
+    //TB3CTL &=~TBIFG;
+    //TB3CCTL0 &=~CCIFG; // TBCCR0 interrupt clear
+}
+ 
+// Timer B1 Rutina de tratare a intreruperi CCR1 <-> CCR6
+#pragma vector = TIMER2_B1_VECTOR
+__interrupt void Timer2_B1_ISR(void)
+{
+ //   switch(__even_in_range(TB3IV,TBIV__TBIFG))
+    switch(TB2IV)
     {
-        optiuneButon++;
+        case TBIV__NONE:
+            break;
+        case TBIV__TBCCR1: // tratam intreruperi CCR1
+            //P6OUT ^= BIT6;// schimba starea lui P1.x
+            TB2CCR1 += 10;
+ //           TB3CCTL6 &=~CCIFG; // TBCCR6 interrupt clear
+            break;
+        case TBIV__TBIFG:
+            break;
+ 
+        default:
+            break;
     }
-    else
+ 
+}
+void Software_Trim()
+{
+    unsigned int oldDcoTap = 0xffff;
+    unsigned int newDcoTap = 0xffff;
+    unsigned int newDcoDelta = 0xffff;
+    unsigned int bestDcoDelta = 0xffff;
+    unsigned int csCtl0Copy = 0;
+    unsigned int csCtl1Copy = 0;
+    unsigned int csCtl0Read = 0;
+    unsigned int csCtl1Read = 0;
+    unsigned int dcoFreqTrim = 3;
+    unsigned char endLoop = 0;
+ 
+    do
     {
-        optiuneButon=1;
-    }
+        CSCTL0 = 0x100;                         // DCO Tap = 256
+        do
+        {
+            CSCTL7 &= ~DCOFFG;                  // Clear DCO fault flag
+        }while (CSCTL7 & DCOFFG);               // Test DCO fault flag
+ 
+        __delay_cycles((unsigned int)3000 * MCLK_FREQ_MHZ);// Wait FLL lock status (FLLUNLOCK) to be stable
+                                                           // Suggest to wait 24 cycles of divided FLL reference clock
+        while((CSCTL7 & (FLLUNLOCK0 | FLLUNLOCK1)) && ((CSCTL7 & DCOFFG) == 0));
+ 
+        csCtl0Read = CSCTL0;                   // Read CSCTL0
+        csCtl1Read = CSCTL1;                   // Read CSCTL1
+ 
+        oldDcoTap = newDcoTap;                 // Record DCOTAP value of last time
+        newDcoTap = csCtl0Read & 0x01ff;       // Get DCOTAP value of this time
+        dcoFreqTrim = (csCtl1Read & 0x0070)>>4;// Get DCOFTRIM value
+ 
+        if(newDcoTap < 256)                    // DCOTAP < 256
+        {
+            newDcoDelta = 256 - newDcoTap;     // Delta value between DCPTAP and 256
+            if((oldDcoTap != 0xffff) && (oldDcoTap >= 256)) // DCOTAP cross 256
+                endLoop = 1;                   // Stop while loop
+            else
+            {
+                dcoFreqTrim--;
+                CSCTL1 = (csCtl1Read & (~DCOFTRIM)) | (dcoFreqTrim<<4);
+            }
+        }
+        else                                   // DCOTAP >= 256
+        {
+            newDcoDelta = newDcoTap - 256;     // Delta value between DCPTAP and 256
+            if(oldDcoTap < 256)                // DCOTAP cross 256
+                endLoop = 1;                   // Stop while loop
+            else
+            {
+                dcoFreqTrim++;
+                CSCTL1 = (csCtl1Read & (~DCOFTRIM)) | (dcoFreqTrim<<4);
+            }
+        }
+ 
+        if(newDcoDelta < bestDcoDelta)         // Record DCOTAP closest to 256
+        {
+            csCtl0Copy = csCtl0Read;
+            csCtl1Copy = csCtl1Read;
+            bestDcoDelta = newDcoDelta;
+        }
+ 
+    }while(endLoop == 0);                      // Poll until endLoop == 1
+ 
+    CSCTL0 = csCtl0Copy;                       // Reload locked DCOTAP
+    CSCTL1 = csCtl1Copy;                       // Reload locked DCOFTRIM
+    while(CSCTL7 & (FLLUNLOCK0 | FLLUNLOCK1)); // Poll until FLL is locked
 }
 
-// Port 4 interrupt service routine
-#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
-#pragma vector=PORT4_VECTOR
-__interrupt void Port_4(void)
-#elif defined(__GNUC__)
-void __attribute__ ((interrupt(PORT4_VECTOR))) Port_4 (void)
-#else
-#error Compiler not supported!
-#endif
-{
-    P4IFG &= ~BIT1;                         // Clear P1.3 IFG
-    switch(optiuneButon){
-    case 1:
-        modificareFrecventa();break;
-    case 2:
-        modificareAmplitudine();break;
-    case 3:
-        modificareFrecventaEsantionare();break;
-    default:
-        break;
-
-    }
-}
