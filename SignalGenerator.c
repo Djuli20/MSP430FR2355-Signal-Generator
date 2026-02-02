@@ -1,6 +1,7 @@
 #include <msp430.h>
  
- 
+void Software_Trim();                       // Software Trim to get the best DCOFTRIM value
+#define MCLK_FREQ_MHZ 24                  // MCLK = 24MHz
  
 void Init_GPIO();
 unsigned int sinus[300] = {
@@ -60,8 +61,11 @@ unsigned int triunghi[300] = {0, 27, 55, 82, 110, 137, 164, 192, 219, 246, 274, 
     329, 301, 274, 246, 219, 192, 164, 137, 110, 82, 55, 27
 };
  
+ 
 unsigned int *semnal1 = sinus;
 unsigned int *semnal2 = sinus;
+ 
+ 
 char ADC_char[3][12] = {
     {'A','x','=',' ','x','x','x','x',10,13,0},
     {'A','x','=',' ','x','x','x','x',10,13,0},
@@ -71,12 +75,18 @@ char ADC_char[3][12] = {
 //char CanalA2_char[6]={'A','2','=',' ','x','x','x','x',10,13,0};
 unsigned int i,j;
 unsigned int indx_semnal1,indx_semnal2,indx_frec=0;
-void Software_Trim();                       // Software Trim to get the best DCOFTRIM value
-#define MCLK_FREQ_MHZ 20                  // MCLK = 2MHz
  
+unsigned int SemnalEN = 0;//modifica semnal1 sau 2
 unsigned int ADC_Result[3];                                    // 12-bit ADC conversion result array
+unsigned int ADC_ResultSav1[3] = {2000,2000,2000};  // stabilizeaza valoarea
+unsigned int ADC_ResultSav2[3] = {2000,2000,2000};  // stabilizeaza valoarea
 unsigned char ADC_i;
 unsigned int DAC_data=0;//se inlocuieste
+unsigned int offset=0;
+float DACOut1 = 1;
+float DACOut2 = 1;
+unsigned int NEP=1;
+unsigned int NEP1Sav=0, NEP2Sav=0;
 char frecW = 0;
 char frecbuff[2] = {'0','1'};
 unsigned int frecMultix = 1;
@@ -87,8 +97,8 @@ int main(void)
     FRCTL0 = FRCTLPW | NWAITS_2; // tact/intarziere pentru access FRAM
     __bis_SR_register(SCG0);                // Disable FLL
      CSCTL3 = SELREF__REFOCLK;               // Set REFO as FLL reference source
-     CSCTL1 = DCOFTRIMEN_1 | DCOFTRIM0 | DCOFTRIM1 | DCORSEL_6;// DCOFTRIM=3, DCO Range = 20MHz
-     CSCTL2 = FLLD_0 + 609;                   // DCODIV = 20MHz
+     CSCTL1 = DCOFTRIMEN_1 | DCOFTRIM0 | DCOFTRIM1 | DCORSEL_7;// DCOFTRIM=3, DCO Range = 20MHz
+     CSCTL2 = FLLD_0 + 731;                   // DCODIV = 20MHz
      __delay_cycles(3);
      __bic_SR_register(SCG0);                // Enable FLL
      Software_Trim();                        // Software Trim to get the best DCOFTRIM value
@@ -99,6 +109,8 @@ int main(void)
      P1SEL0 |= BIT5;                           // Select P1.5 as OA1O function
      P1SEL1 |= BIT5;                           // OA is used as buffer for DAC
  
+     P3SEL0 |= BIT1;                           // Select P3.1 as OA1O function
+     P3SEL1 |= BIT1;                           // OA is used as buffer for DAC
      // Configure UART pins P4.3 Tx si P4.2 Rx
        P4SEL0 |= BIT2 | BIT3;
        P4SEL1 &=~(BIT2 | BIT3);
@@ -113,10 +125,10 @@ int main(void)
        // (4) Fractional portion = 0.827. Refered to UG Table 17-4, UCBRSx=0xEE.
      // MCLK SMCLK PINS
  
-       // @115200bps @ 20MHz
-       UCA1BR0 = 10;
+       // @115200bps @ 24MHz
+       UCA1BR0 = 13;
        UCA1BR1 = 0x00;
-       UCA1MCTLW = 0xADD1;
+       UCA1MCTLW = 0x2501;
  
  
      P3DIR |= BIT0;
@@ -155,20 +167,37 @@ int main(void)
     SAC1DAC |= DACEN;                         // Enable DAC
  
     SAC1OA = NMUXEN + PMUXEN + PSEL_1 + NSEL_1;//Select positive and negative pin input
-    SAC1OA |= OAPM_0;                            // Select low speed and low power mode
+    SAC1OA |= OAPM_0;
     SAC1PGA = MSEL_1;                          // Set OA as buffer mode
     SAC1OA |= SACEN + OAEN;                    // Enable SAC and OA
  
-    // Use TB2.1 as DAC hardware trigger
-    TB2CCR0 = 100;// pentru a genera T_int_a la 52ms
-    TB2CCR1 = 10;// pentru a genera T_int_b la 90us
+    SAC2DAC = DACSREF_0 + DACLSEL_0 + DACIE;  // Select int Vref as DAC reference
+    SAC2DAT = DAC_data;                       // Initial DAC data
+    SAC2DAC |= DACEN;                         // Enable DAC
+ 
+    SAC2OA = NMUXEN + PMUXEN + PSEL_1 + NSEL_1;//Select positive and negative pin input
+    SAC2OA |= OAPM_0;
+    SAC2PGA = MSEL_1;                          // Set OA as buffer mode
+    SAC2OA |= SACEN + OAEN;                    // Enable SAC and OA
+    TB2CCR0 = 6000;
+    TB2CCR1 = 10;
  
     TB2CCTL0 = CCIE;// TBCCR0 interrupt enabled
     TB2CCTL1 = CCIE;// TBCCR1 interrupt enabled
  
  
-    //TB2EX0 |= TBIDEX_4;// IDEX = 5
+    //TB3EX0 |= TBIDEX_4;// IDEX = 5
     TB2CTL |= TBSSEL__SMCLK | ID_0 | TBCLR | MC__CONTINOUS| TBIE; // tact_SMCLK, IDEX = 5, ID=4 modul continuu(up)
+ 
+    TB3CCR0 = 6000;// pentru a genera T_int_a la 52ms
+    TB3CCR1 = 10;// pentru a genera T_int_b la 90us
+ 
+    TB3CCTL0 = CCIE;// TBCCR0 interrupt enabled
+    TB3CCTL1 = CCIE;// TBCCR1 interrupt enabled
+ 
+ 
+    //TB2EX0 |= TBIDEX_4;// IDEX = 5
+    TB3CTL |= TBSSEL__SMCLK | ID_0 | TBCLR | MC__CONTINOUS| TBIE; // tact_SMCLK, IDEX = 5, ID=4 modul continuu(up)
  
  
  
@@ -180,13 +209,11 @@ int main(void)
  
     ADC_i = 2;
     i=0;
-//    while(1)
-//    {
+ 
         ADCCTL0 |= ADCENC;                                       // Enable ADC
         TB1CTL |= TBCLR;                                         // Clear TAR to start the ADC sample
         __bis_SR_register(GIE);                      // Eenable global interrupts
-        __no_operation();                                        // Only for debug
-//    }
+        __no_operation();
 }
  
 // ADC interrupt service routine
@@ -215,12 +242,7 @@ void __attribute__ ((interrupt(ADC_VECTOR))) ADC_ISR (void)
             break;
         case ADCIV_ADCIFG:
             ADC_Result[ADC_i] = ADCMEM0;
-            //!!Conversie pentru afisare 3 canale ADC
-//            ADC_char[ADC_i][2] = (ADC_i/10)+48;
-//            ADC_char[ADC_i][4] = (ADC_Result[ADC_i]%10)+48;
-//            ADC_char[ADC_i][5] = ((ADC_Result[ADC_i]/10)%10)+48;
-//            ADC_char[ADC_i][6] = ((ADC_Result[ADC_i]/100)%10)+48;
-//            ADC_char[ADC_i][7] = ((ADC_Result[ADC_i]/1000)%10)+48;
+ 
             if(ADC_i == 0)
             {
                 __no_operation();   // Only for debug
@@ -246,6 +268,7 @@ __interrupt void Rutina_USCI_A1(void)
     case USCI_UART_UCRXIFG:
         if (UCA1RXBUF == '#')
         {
+           NEP = (int)(ADC_Result[2]/100)+1;
             //TB2CCR0 = ADC_Result[0];
             for(j=0;j<3;j++)
                {
@@ -254,6 +277,8 @@ __interrupt void Rutina_USCI_A1(void)
                                ADC_char[j][6] = ((ADC_Result[j]/100)%10)+48;
                                ADC_char[j][5] = ((ADC_Result[j]/10)%10)+48;
                                ADC_char[j][7] = (ADC_Result[j]%10)+48;
+ 
+ 
                }
             for(j=0;j<3;j++)
             {
@@ -267,6 +292,16 @@ __interrupt void Rutina_USCI_A1(void)
  
         }
       else
+             if(UCA1RXBUF == 'd')
+             {
+                 SemnalEN = 0;
+             }
+      else
+             if(UCA1RXBUF == 'D')
+             {
+                 SemnalEN = 1;
+             }
+      else
           if(UCA1RXBUF == 's')
           {
               semnal1 = sinus;
@@ -277,25 +312,44 @@ __interrupt void Rutina_USCI_A1(void)
               semnal1 = triunghi;
           }
       else
-          if(UCA1RXBUF == 'd')
+          if(UCA1RXBUF == 'r')
           {
               semnal1 = rampa;
+          }
+      else
+          if(UCA1RXBUF == 'S')
+          {
+              semnal2 = sinus;
+          }
+      else
+          if(UCA1RXBUF == 'T')
+          {
+             semnal2 = triunghi;
+          }
+      else
+          if(UCA1RXBUF == 'R')
+          {
+              semnal2 = rampa;
           }
       else
           if(UCA1RXBUF == '!')
           {
               frecW ^= 1;
           }
-      if(frecW == 1)
+      if(frecW == 1)//asta care functioneaza
       {
-          frecbuff[indx_frec]=UCA1RXBUF;
+          if(indx_frec==0){indx_frec++;}
+          else
+          {
+          frecbuff[indx_frec-1]=UCA1RXBUF;
           indx_frec++;
-          if(indx_frec==2)
+          if(indx_frec==3)
           {
               frecMultix = (frecbuff[0] - 48) * 10 + (frecbuff[1] - 48);
               indx_frec=0;
+              frecW = 0;
           }
-          //frecW == 0;
+          }
       }
        {
       while(!(UCA1IFG&UCTXIFG));
@@ -315,24 +369,27 @@ __interrupt void Rutina_USCI_A1(void)
 #pragma vector = TIMER2_B0_VECTOR
 __interrupt void Timer2_B0_ISR(void)
 {
-    //P1OUT ^= BIT0;// schimba starea lui P1.x
-    TB2CCR0 += 100;//ADC_Result[0];
+    if(SemnalEN == 0)
+    {
+        ADC_ResultSav1[1]=ADC_Result[1];
+        ADC_ResultSav1[0]=ADC_Result[0];
+        NEP1Sav = NEP;
+    }
+    TB2CCR0 += 6000-ADC_ResultSav1[1];//ADC_Result[0];
     //TB2CCR0 += ADC_Result[0]/10;
  
-//    DAC_data+=10;
-//    DAC_data = ADC_Result[0];
-//    DAC_data += ADC_Result[0]/10;
-//    DAC_data &= 0xFFF;
-//    SAC1DAT = DAC_data;                 // DAC12 output positive ramp
-    indx_semnal1+=frecMultix;
+    indx_semnal1+=frecMultix+NEP1Sav;
     if(indx_semnal1>=300)
         indx_semnal1=0;
-     SAC1DAT = semnal1[indx_semnal1];
+    DACOut1 = (semnal1[indx_semnal1]*(float)ADC_ResultSav1[0]/4095.0);
+ 
+     //SAC1DAT = (int) ((float)semnal1[indx_semnal1]*(1/(float)ADC_Result[0]));
+     SAC1DAT = DACOut1;
     //TB3CTL &=~TBIFG;
     //TB3CCTL0 &=~CCIFG; // TBCCR0 interrupt clear
 }
  
-// Timer B1 Rutina de tratare a intreruperi CCR1 <-> CCR6
+ //Timer B2 Rutina de tratare a intreruperi CCR1 <-> CCR6
 #pragma vector = TIMER2_B1_VECTOR
 __interrupt void Timer2_B1_ISR(void)
 {
@@ -341,10 +398,8 @@ __interrupt void Timer2_B1_ISR(void)
     {
         case TBIV__NONE:
             break;
-        case TBIV__TBCCR1: // tratam intreruperi CCR1
-            //P6OUT ^= BIT6;// schimba starea lui P1.x
-            TB2CCR1 += 10;
- //           TB3CCTL6 &=~CCIFG; // TBCCR6 interrupt clear
+        case TBIV__TBCCR1:
+            TB2CCR1 += 100;
             break;
         case TBIV__TBIFG:
             break;
@@ -354,6 +409,50 @@ __interrupt void Timer2_B1_ISR(void)
     }
  
 }
+ 
+// Timer B3 Rutina de tratare a intreruperi CCR0
+#pragma vector = TIMER3_B0_VECTOR
+__interrupt void Timer3_B0_ISR(void)
+{
+ 
+    if(SemnalEN == 1)
+    {
+        ADC_ResultSav2[1]=ADC_Result[1];
+        ADC_ResultSav2[0]=ADC_Result[0];
+        NEP2Sav = NEP;
+    }
+    TB3CCR0 += 6000-ADC_ResultSav2[1];//ADC_Result[0];
+ 
+ 
+    indx_semnal2+=frecMultix+NEP2Sav;
+    if(indx_semnal2>=300)
+        indx_semnal2=0;
+    DACOut2 = (semnal2[indx_semnal2]*(float)ADC_ResultSav2[0]/4095.0);
+ 
+     //SAC1DAT = (int) ((float)semnal1[indx_semnal1]*(1/(float)ADC_Result[0]));
+    SAC2DAT = DACOut2;
+}
+ 
+// Timer B3 Rutina de tratare a intreruperi CCR1 <-> CCR6
+#pragma vector = TIMER3_B1_VECTOR
+__interrupt void Timer3_B1_ISR(void)
+{
+    switch(TB3IV)
+    {
+        case TBIV__NONE:
+            break;
+        case TBIV__TBCCR1:
+            TB3CCR1 += 10;
+            break;
+        case TBIV__TBIFG:
+            break;
+ 
+        default:
+            break;
+    }
+ 
+}
+ 
 void Software_Trim()
 {
     unsigned int oldDcoTap = 0xffff;
@@ -422,4 +521,5 @@ void Software_Trim()
     CSCTL1 = csCtl1Copy;                       // Reload locked DCOFTRIM
     while(CSCTL7 & (FLLUNLOCK0 | FLLUNLOCK1)); // Poll until FLL is locked
 }
+
 
