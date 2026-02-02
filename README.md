@@ -57,5 +57,5 @@ Potentiometer 2: Adjusts Frequency.
 Potentiometer 3: Adjusts Phase.
 P1.5 is the output of the Channel 1 and P3.1 is the output of the Channel 2. Connect them to an oscilloscope to see the output or use the signals for a specific purpose.
 P4.2 (RX) and P4.3 (TX) are used with the USB connection for UART communication.
-<img width="468" height="623" alt="image" src="https://github.com/user-attachments/assets/56311b74-0362-4dac-a2f2-5ad97aac4be6" />
+
 
