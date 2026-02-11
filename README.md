@@ -51,8 +51,9 @@ The special character „#” sends the current ADC values back to the PC.
 There is also the posibility to downsize the LUT steps with the special character „!”. Typing „!01” means full 300 LUT step resolution. „!02” would be 150 LUT steps and „!10” 30 LUT steps.
 
 Interpreting the results.
-Setting the freqmultix on 30 I achived a resolution of 10 samples per period for first channel and 20 for the second. In the picture Sine and Triangle you can see that with this settings I was able to achive two signals, a triangle with the frequency of 450Hz and amplitude of 2.5V and a sine of wave of 300Hz with an amplitude of 1.1V
+	Setting the freqmultix on 30 I achived a resolution of 10 samples per period for first channel and 20 for the second. In the picture Sine and Triangle you can see that with this settings I was able to achive two signals, a triangle with the frequency of 450Hz and amplitude of 2.5V and a sine of wave of 300Hz with an amplitude of 1.1V
 The other demonstration from the picture Triangle and Saw i lowered the frequency multiplier freqmulix to 5, so that there are 60 samples. The frequency of the signals of course is lower this way. The triangle waveform of the amplitude 1.5V has a frequency of 126Hz meanwhile the triangle waveform has a frequency of 80Hz and amplitude of 2.1V
+Finally, using the full 300 samples LUT step resolution the waveform is the most accurate, but the maximum frequency I was able to achive is 94Hz. In the picture Sine and Triangle you can see sine wave with the amplitude of 1.5V and the triangle waveform with the amplitude of 2.2V both at 94Hz frequency.
 
 
 
