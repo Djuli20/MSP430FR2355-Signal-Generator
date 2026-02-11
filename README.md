@@ -58,7 +58,8 @@ Finally, using the full 300 samples LUT step resolution the waveform is the most
 
 
 Hardware Setup
-	Three 10kΩ potentiometers are connected to pins P1.0 (A0), P1.1 (A1), and P1.2 (A2).
+The schematics are present in the file Pin Connections
+Three 10kΩ potentiometers are connected to pins P1.0 (A0), P1.1 (A1), and P1.2 (A2). 
 Potentiometer 1: Adjusts Amplitude.
 Potentiometer 2: Adjusts Frequency.
 Potentiometer 3: Adjusts Phase.
