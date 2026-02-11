@@ -1,6 +1,7 @@
 # MSP430FR2355-Signal-Generator
 
 About the project
+
 	A signal generator is an electronic device that generates electronic waveforms used to test and evaluate electronic test equipment. It simulates real-world signals and conditions, enabling to test the performance and behavior of electronic systems. At the core of any signal generator is the oscilator that can take one of the few possible waveforms: sine, triangle, saw, PWM waveforms. Then the oscilators are modulated in order to change the parameters of the waveform such as frequency, amplitude or phase.
 The classical signal generators use analog oscilators, meanwhile a digital oscilator uses the clock of the system as a reference for the frequency and a LookUp table for the waveform. The signal generated is then created using a Digital-to-Analog Converter.
 The goal of the project is to make the MSP430FR2355 microcontroler to generate two individual signals that each can take form of a sine, triangle or saw waveforms.
