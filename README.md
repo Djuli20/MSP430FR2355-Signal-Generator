@@ -50,6 +50,10 @@ There is a toogle edit mode with the characters „d” and „D”. Character �
 The special character „#” sends the current ADC values back to the PC.
 There is also the posibility to downsize the LUT steps with the special character „!”. Typing „!01” means full 300 LUT step resolution. „!02” would be 150 LUT steps and „!10” 30 LUT steps.
 
+Interpreting the results.
+Setting the freqmultix on 30 I achived a resolution of 10 samples per period for first channel and 20 for the second. In the picture Sine + Triangle you can see that with this settings I was able to achive two signals, a triangle with the frequency of 450Hz and amplitude of 2.5V and a sine of wave of 300Hz with an amplitude of 1.1V
+
+
 Hardware Setup
 	Three 10kΩ potentiometers are connected to pins P1.0 (A0), P1.1 (A1), and P1.2 (A2).
 Potentiometer 1: Adjusts Amplitude.
